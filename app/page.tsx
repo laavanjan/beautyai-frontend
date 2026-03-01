@@ -11,7 +11,9 @@ import CartToast from '@/components/CartToast';
 import { Sparkles, ShoppingBag, ArrowRight } from 'lucide-react';
 import { getSessionId, clearSession } from '@/lib/session';
 
-const API_URL = 'http://localhost:8000/chat';
+const API_URL = process.env.NEXT_PUBLIC_API_URL
+  ? `${process.env.NEXT_PUBLIC_API_URL}/chat`
+  : 'http://localhost:8000/chat';
 const NAME_KEY = 'beautyai_user_name';
 
 // ── Name onboarding modal ─────────────────────────────────────────────────────
