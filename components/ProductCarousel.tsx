@@ -5,10 +5,12 @@ import { useRef, useState, useEffect } from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 
 interface Product {
+  product_id?: string;
   name: string;
-  description: string;
+  description?: string;  
   tagline?: string;
   badge?: string;
+  brand?: string;
   price: number;
   image_url: string;
 }
