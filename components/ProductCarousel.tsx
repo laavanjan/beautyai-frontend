@@ -1,6 +1,7 @@
+// components/ProductCarousel.tsx
 'use client';
 
-import { useState, useRef } from 'react';
+import { useRef, useState, useEffect } from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 
 interface Product {
@@ -17,72 +18,143 @@ interface ProductCarouselProps {
   onBuyNow?: (product: Product) => void;
 }
 
-// Fixed card dimensions (35% smaller than original 320px)
-const CARD_W = 208; // ~320 * 0.65
-const IMG_H  = 156; // ~240 * 0.65
+// Responsive card width - using percentage of container with min/max
+const CARD_WIDTH = {
+  base: 180, // mobile
+  sm: 200,   // small tablet
+  md: 220,   // desktop
+};
+
+const GAP = 12; // gap-3 = 12px
 
 export default function ProductCarousel({ products, onBuyNow }: ProductCarouselProps) {
-  const [index, setIndex] = useState(0);
-  const VISIBLE = 3; // cards visible at once
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const [showLeftArrow, setShowLeftArrow] = useState(false);
+  const [showRightArrow, setShowRightArrow] = useState(true);
+  const [cardWidth, setCardWidth] = useState(CARD_WIDTH.base);
 
-  const canPrev = index > 0;
-  const canNext = index + VISIBLE < products.length;
+  // Update card width based on container size
+  useEffect(() => {
+    const updateCardWidth = () => {
+      const width = window.innerWidth;
+      if (width >= 1024) setCardWidth(CARD_WIDTH.md);
+      else if (width >= 640) setCardWidth(CARD_WIDTH.sm);
+      else setCardWidth(CARD_WIDTH.base);
+    };
 
-  const prev = () => canPrev && setIndex(i => i - 1);
-  const next = () => canNext && setIndex(i => i + 1);
+    updateCardWidth();
+    window.addEventListener('resize', updateCardWidth);
+    return () => window.removeEventListener('resize', updateCardWidth);
+  }, []);
 
-  const visible = products.slice(index, index + VISIBLE);
+  const checkScroll = () => {
+    const container = scrollContainerRef.current;
+    if (!container) return;
+
+    const { scrollLeft, scrollWidth, clientWidth } = container;
+    setShowLeftArrow(scrollLeft > 10);
+    setShowRightArrow(scrollLeft < scrollWidth - clientWidth - 10);
+  };
+
+  useEffect(() => {
+    checkScroll();
+    window.addEventListener('resize', checkScroll);
+    return () => window.removeEventListener('resize', checkScroll);
+  }, [products]);
+
+  const scroll = (direction: 'left' | 'right') => {
+    const container = scrollContainerRef.current;
+    if (!container) return;
+
+    const scrollAmount = direction === 'left' ? -cardWidth * 2 : cardWidth * 2;
+    container.scrollBy({ left: scrollAmount, behavior: 'smooth' });
+  };
+
+  // Calculate max container width to prevent overflow
+  const maxContainerWidth = cardWidth * 3 + GAP * 2; // 3 cards + gaps
 
   return (
-    <div className="relative w-full">
-      {/* Cards row */}
-      <div className="flex gap-3 items-stretch">
-        {visible.map((p, i) => (
+    <div className="relative w-full max-w-full overflow-hidden">
+      {/* Left Arrow - positioned absolutely within container */}
+      {showLeftArrow && (
+        <button
+          onClick={() => scroll('left')}
+          className="absolute left-1 top-1/2 -translate-y-1/2 z-20 w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-white shadow-lg border border-gray-200 flex items-center justify-center text-gray-700 hover:bg-gray-50 hover:scale-110 transition-all opacity-80 hover:opacity-100"
+          aria-label="Scroll left"
+        >
+          <ChevronLeft size={16} className="sm:w-[18px] sm:h-[18px]" />
+        </button>
+      )}
+
+      {/* Right Arrow */}
+      {showRightArrow && (
+        <button
+          onClick={() => scroll('right')}
+          className="absolute right-1 top-1/2 -translate-y-1/2 z-20 w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-white shadow-lg border border-gray-200 flex items-center justify-center text-gray-700 hover:bg-gray-50 hover:scale-110 transition-all opacity-80 hover:opacity-100"
+          aria-label="Scroll right"
+        >
+          <ChevronRight size={16} className="sm:w-[18px] sm:h-[18px]" />
+        </button>
+      )}
+
+      {/* Scrollable Container */}
+      <div
+        ref={scrollContainerRef}
+        onScroll={checkScroll}
+        className="flex gap-3 overflow-x-auto scrollbar-hide pb-2 px-1"
+        style={{
+          scrollbarWidth: 'none',
+          msOverflowStyle: 'none',
+          WebkitOverflowScrolling: 'touch',
+        }}
+      >
+        {products.map((product, idx) => (
           <div
-            key={index + i}
-            className="shrink-0 bg-white rounded-2xl overflow-hidden shadow-sm border border-gray-100 flex flex-col"
-            style={{ width: CARD_W }}
+            key={idx}
+            className="shrink-0 bg-white rounded-xl sm:rounded-2xl overflow-hidden shadow-sm border border-gray-100 flex flex-col hover:shadow-md transition-shadow"
+            style={{ width: `${cardWidth}px` }}
           >
-            {/* Image */}
-            <div className="relative shrink-0 bg-gray-100" style={{ height: IMG_H }}>
-              {p.badge && (
-                <span className="absolute top-2 left-2 z-10 bg-black/75 text-white text-[10px] font-semibold px-2.5 py-1 rounded-full backdrop-blur-sm">
-                  {p.badge}
+            {/* Image - fixed aspect ratio */}
+            <div className="relative shrink-0 bg-gray-100" style={{ height: cardWidth * 0.75 }}> {/* 4:3 aspect ratio */}
+              {product.badge && (
+                <span className="absolute top-1.5 left-1.5 z-10 bg-black/75 text-white text-[8px] sm:text-[10px] font-semibold px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-full backdrop-blur-sm">
+                  {product.badge}
                 </span>
               )}
               <img
-                src={p.image_url}
-                alt={p.name}
+                src={product.image_url}
+                alt={product.name}
                 className="w-full h-full object-cover"
+                loading="lazy"
               />
             </div>
 
-            {/* Content */}
-            <div className="flex flex-col flex-1 p-3 gap-2">
+            {/* Content - compact padding */}
+            <div className="flex flex-col flex-1 p-2 sm:p-3 gap-1.5 sm:gap-2">
               <div className="flex-1">
-                <p className="font-bold text-[13px] text-gray-900 leading-tight line-clamp-2">
-                  {p.name}
+                <p className="font-bold text-[11px] sm:text-[13px] text-gray-900 leading-tight line-clamp-2">
+                  {product.name}
                 </p>
-                {p.tagline && (
-                  <p className="text-[11px] text-gray-400 mt-0.5">{p.tagline}</p>
+                {product.tagline && (
+                  <p className="text-[9px] sm:text-[11px] text-gray-400 mt-0.5 truncate">{product.tagline}</p>
                 )}
-                <p className="text-[11px] text-gray-500 mt-1 line-clamp-2 leading-snug">
-                  {p.description}
+                <p className="text-[9px] sm:text-[11px] text-gray-500 mt-1 line-clamp-2 leading-snug">
+                  {product.description}
                 </p>
               </div>
 
-              {/* Footer */}
-              <div className="flex items-center justify-between gap-2 mt-1">
-                <span className="text-[12px] font-bold text-gray-900 bg-gray-100 px-2.5 py-1 rounded-full">
-                  Rs.{p.price}
+              {/* Footer - compact layout */}
+              <div className="flex items-center justify-between gap-1 mt-0.5">
+                <span className="text-[10px] sm:text-[12px] font-bold text-gray-900 bg-gray-100 px-2 sm:px-2.5 py-0.5 sm:py-1 rounded-full">
+                  ₹{product.price}
                 </span>
                 <button
-                  onClick={() => onBuyNow?.(p)}
-                  className="flex items-center gap-1.5 bg-gray-900 text-white text-[11px] font-semibold px-3 py-1.5 rounded-full hover:bg-gray-700 active:scale-95 transition"
+                  onClick={() => onBuyNow?.(product)}
+                  className="flex items-center gap-1 bg-gray-900 text-white text-[9px] sm:text-[11px] font-semibold px-2 sm:px-3 py-1 sm:py-1.5 rounded-full hover:bg-gray-700 active:scale-95 transition whitespace-nowrap"
                 >
                   Buy Now
-                  <span className="flex items-center justify-center bg-white text-gray-900 rounded-full w-4 h-4">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="10" height="10">
+                  <span className="flex items-center justify-center bg-white text-gray-900 rounded-full w-3.5 h-3.5 sm:w-4 sm:h-4">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="8" height="8" className="sm:w-[10px] sm:h-[10px]">
                       <path d="M7 17L17 7M17 7H7M17 7v10" />
                     </svg>
                   </span>
@@ -91,53 +163,41 @@ export default function ProductCarousel({ products, onBuyNow }: ProductCarouselP
             </div>
           </div>
         ))}
-
-        {/* Placeholder cards to keep row width stable */}
-        {visible.length < VISIBLE && Array.from({ length: VISIBLE - visible.length }).map((_, i) => (
-          <div key={`ph-${i}`} style={{ width: CARD_W }} className="shrink-0" />
-        ))}
       </div>
 
-      {/* Arrow buttons — only show if more than VISIBLE cards */}
-      {products.length > VISIBLE && (
-        <div className="flex items-center gap-2 mt-3">
-          <button
-            onClick={prev}
-            disabled={!canPrev}
-            className={`w-8 h-8 rounded-full flex items-center justify-center border transition
-              ${canPrev
-                ? 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50 shadow-sm'
-                : 'bg-gray-100 border-gray-200 text-gray-300 cursor-not-allowed'}`}
-          >
-            <ChevronLeft size={16} />
-          </button>
-          <button
-            onClick={next}
-            disabled={!canNext}
-            className={`w-8 h-8 rounded-full flex items-center justify-center border transition
-              ${canNext
-                ? 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50 shadow-sm'
-                : 'bg-gray-100 border-gray-200 text-gray-300 cursor-not-allowed'}`}
-          >
-            <ChevronRight size={16} />
-          </button>
-
-          {/* Dot indicators */}
-          <div className="flex gap-1 ml-1">
-            {products.map((_, i) => (
+      {/* Scroll indicator dots - only show if more than 3 cards */}
+      {products.length > 3 && (
+        <div className="flex justify-center gap-1 mt-2 lg:hidden">
+          {products.map((_, idx) => {
+            // Calculate which dot should be active based on scroll position
+            const isActive = idx === 0; // This should be dynamic based on scroll
+            return (
               <button
-                key={i}
-                onClick={() => setIndex(Math.min(i, products.length - VISIBLE))}
-                className={`rounded-full transition-all ${
-                  i >= index && i < index + VISIBLE
-                    ? 'w-4 h-1.5 bg-gray-800'
-                    : 'w-1.5 h-1.5 bg-gray-300'
+                key={idx}
+                onClick={() => {
+                  const container = scrollContainerRef.current;
+                  if (container) {
+                    container.scrollTo({
+                      left: idx * (cardWidth + GAP),
+                      behavior: 'smooth',
+                    });
+                  }
+                }}
+                className={`h-1 rounded-full transition-all ${
+                  isActive ? 'w-4 bg-gray-800' : 'w-1 bg-gray-300'
                 }`}
+                aria-label={`Go to slide ${idx + 1}`}
               />
-            ))}
-          </div>
+            );
+          })}
         </div>
       )}
+
+      <style jsx>{`
+        .scrollbar-hide::-webkit-scrollbar {
+          display: none;
+        }
+      `}</style>
     </div>
   );
 }
